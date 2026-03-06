@@ -56,7 +56,10 @@ function loadState() {
     const raw = localStorage.getItem("dsatm_voting");
     if (!raw) return;
     const data = JSON.parse(raw);
-    if (data.candidates)  Object.assign(STATE.candidates, data.candidates);
+    if (data.candidates) {
+      Object.keys(STATE.candidates).forEach(k => delete STATE.candidates[k]);
+      Object.assign(STATE.candidates, data.candidates);
+    }
     if (data.voters)      Object.assign(STATE.voters, data.voters);
     if (data.voterNames)  data.voterNames.forEach(n => STATE.voterNames.add(n));
     if (data.logs)        STATE.logs = data.logs;
@@ -181,6 +184,11 @@ function showStep(id) {
 function renderCandidatesGrid() {
   const grid = document.getElementById("candidates-grid");
   if (!grid) return;
+  // If previously selected candidate no longer exists, clear it
+  if (selectedCandidate && !STATE.candidates.hasOwnProperty(selectedCandidate)) {
+    selectedCandidate = null;
+    updateConfirmBtn();
+  }
   grid.innerHTML = Object.keys(STATE.candidates).map(name => `
     <div class="candidate-card" data-name="${name}">
       <div class="check-icon">✓</div>
@@ -231,8 +239,14 @@ document.getElementById("btn-back").addEventListener("click", () => showStep("st
 // CONFIRM button
 document.getElementById("btn-confirm").addEventListener("click", () => {
   if (!selectedCandidate || !currentVoterData) return;
-
-  // Cast vote
+  // Guard: candidate may have been removed by admin between steps
+  if (!STATE.candidates.hasOwnProperty(selectedCandidate)) {
+    showToast("That candidate no longer exists. Please go back and reselect.", "error");
+    selectedCandidate = null;
+    renderCandidatesGrid();
+    showStep("step-2");
+    return;
+  }
   STATE.candidates[selectedCandidate]++;
   STATE.voters[currentVoterData.vid] = {
     name:   currentVoterData.name,
@@ -341,6 +355,7 @@ function renderAdminDashboard() {
   renderCandidateManageList();
   renderLogViewer();
   updateVotingToggle();
+  renderCandidatesGrid(); // keep vote screen in sync with any candidate changes
 }
 
 function renderAdminStats() {
@@ -506,7 +521,10 @@ function init() {
   buildTicker();
   renderCandidatesGrid();
   updateConfirmBtn();
-  writeLog("System started");
+  // Only log first-ever startup, not every page refresh
+  if (STATE.logs.length === 0) {
+    writeLog("Election system initialized");
+  }
   saveState();
 }
 
