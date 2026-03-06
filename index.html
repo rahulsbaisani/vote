@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DSATM – Class Representative Election 2026</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,300&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+
+  <!-- ── NOISE OVERLAY ── -->
+  <div class="noise"></div>
+
+  <!-- ── FLOATING ORBS ── -->
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <!-- ══════════════════ HEADER ══════════════════ -->
+  <header class="site-header">
+    <div class="header-left">
+      <span class="badge">LIVE</span>
+      <span class="election-meta">CR Election · DSATM · 2026</span>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+    <nav class="header-nav">
+      <button class="nav-btn active" data-screen="home">HOME</button>
+      <button class="nav-btn" data-screen="vote">VOTE</button>
+      <button class="nav-btn" data-screen="results">RESULTS</button>
+      <button class="nav-btn" data-screen="admin">ADMIN</button>
+    </nav>
+  </header>
+
+  <!-- ══════════════════ MAIN WRAPPER ══════════════════ -->
+  <main>
+
+    <!-- ── SCREEN: HOME ── -->
+    <section class="screen active" id="screen-home">
+      <div class="hero">
+        <p class="hero-kicker">DSATM Class Representative</p>
+        <h1 class="hero-title">ELECT<br/>YOUR<br/><em>VOICE</em></h1>
+        <p class="hero-sub">Cast your vote for the 2026 Class Representative. Every voice counts.<br/>
+        Voting window: <strong>09:00 – 23:00</strong></p>
+        <div class="hero-actions">
+          <button class="btn-primary" data-goto="vote">CAST YOUR VOTE</button>
+          <button class="btn-ghost" data-goto="results">VIEW STANDINGS</button>
+        </div>
+      </div>
+      <div class="candidate-ticker-wrapper">
+        <p class="ticker-label">RUNNING FOR CR —</p>
+        <div class="ticker-track" id="ticker"></div>
+      </div>
+    </section>
+
+    <!-- ── SCREEN: VOTE ── -->
+    <section class="screen" id="screen-vote">
+      <div class="screen-header">
+        <h2 class="screen-title">Registration & Ballot</h2>
+        <p class="screen-sub">Fill in your details, select your candidate, and submit.</p>
+      </div>
+
+      <div class="form-card" id="vote-form-wrap">
+        <!-- Step 1: Voter Details -->
+        <div class="step active" id="step-1">
+          <h3 class="step-label"><span class="step-num">01</span> Your Details</h3>
+          <div class="field-group">
+            <div class="field">
+              <label>Full Name</label>
+              <input type="text" id="voter-name" placeholder="e.g. Riya Sharma" autocomplete="off"/>
+            </div>
+            <div class="field half">
+              <label>Age</label>
+              <input type="number" id="voter-age" placeholder="18+" min="18"/>
+            </div>
+            <div class="field half">
+              <label>Gender</label>
+              <select id="voter-gender">
+                <option value="">Select</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Others">Others</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Voter ID <span class="hint">(numbers only)</span></label>
+              <input type="text" id="voter-id" placeholder="e.g. 10482" autocomplete="off"/>
+            </div>
+          </div>
+          <button class="btn-primary" id="btn-next">NEXT →</button>
+        </div>
+
+        <!-- Step 2: Pick Candidate -->
+        <div class="step" id="step-2">
+          <h3 class="step-label"><span class="step-num">02</span> Choose Your Candidate</h3>
+          <div class="candidates-grid" id="candidates-grid"></div>
+          <div class="step-nav">
+            <button class="btn-ghost" id="btn-back">← BACK</button>
+            <button class="btn-primary" id="btn-confirm" disabled>CONFIRM VOTE</button>
+          </div>
+        </div>
+
+        <!-- Step 3: Confirmation -->
+        <div class="step" id="step-3">
+          <div class="success-card">
+            <div class="check-anim">
+              <svg viewBox="0 0 52 52"><circle class="check-circle" cx="26" cy="26" r="25"/><path class="check-mark" d="M14 27l8 8 16-16"/></svg>
+            </div>
+            <h3 class="success-title">Vote Cast!</h3>
+            <p class="success-msg" id="success-msg"></p>
+            <button class="btn-ghost" data-goto="results">SEE LIVE RESULTS</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SCREEN: RESULTS ── -->
+    <section class="screen" id="screen-results">
+      <div class="screen-header">
+        <h2 class="screen-title">Live Standings</h2>
+        <p class="screen-sub" id="results-total">Total votes: 0</p>
+      </div>
+      <div class="results-board" id="results-board"></div>
+    </section>
+
+    <!-- ── SCREEN: ADMIN ── -->
+    <section class="screen" id="screen-admin">
+      <!-- Login Panel -->
+      <div class="admin-panel" id="admin-login">
+        <div class="admin-login-box">
+          <div class="admin-icon">⬡</div>
+          <h2>Admin Access</h2>
+          <p>Restricted zone. Enter credentials to continue.</p>
+          <div class="field">
+            <label>Password</label>
+            <input type="password" id="admin-pw" placeholder="••••••••"/>
+          </div>
+          <button class="btn-primary" id="btn-admin-login">AUTHENTICATE</button>
+          <p class="admin-err" id="admin-err"></p>
+        </div>
+      </div>
+
+      <!-- Dashboard -->
+      <div class="admin-panel hidden" id="admin-dashboard">
+        <div class="admin-topbar">
+          <h2 class="screen-title">Admin Dashboard</h2>
+          <div class="admin-actions-top">
+            <button class="pill-btn" id="toggle-voting">
+              <span class="dot" id="voting-dot"></span>
+              <span id="voting-label">Voting: OPEN</span>
+            </button>
+            <button class="pill-btn danger" id="btn-export">Export Report</button>
+            <button class="pill-btn" id="btn-logout">Logout</button>
+          </div>
+        </div>
+
+        <div class="admin-grid">
+          <!-- Stats -->
+          <div class="admin-widget stat-widget">
+            <span class="widget-label">Total Votes</span>
+            <span class="widget-value" id="stat-total">0</span>
+          </div>
+          <div class="admin-widget stat-widget">
+            <span class="widget-label">Candidates</span>
+            <span class="widget-value" id="stat-candidates">0</span>
+          </div>
+          <div class="admin-widget stat-widget">
+            <span class="widget-label">Leading</span>
+            <span class="widget-value small" id="stat-leader">—</span>
+          </div>
+
+          <!-- Results Table -->
+          <div class="admin-widget results-widget">
+            <h4 class="widget-title">Vote Breakdown</h4>
+            <div id="admin-results-table"></div>
+          </div>
+
+          <!-- Candidate Manager -->
+          <div class="admin-widget manage-widget">
+            <h4 class="widget-title">Candidate Manager</h4>
+            <ul class="candidate-manage-list" id="candidate-manage-list"></ul>
+            <div class="add-candidate-row">
+              <input type="text" id="new-candidate-name" placeholder="New candidate name…"/>
+              <button class="btn-primary small" id="btn-add-candidate">ADD</button>
+            </div>
+          </div>
+
+          <!-- Log Viewer -->
+          <div class="admin-widget log-widget">
+            <h4 class="widget-title">Activity Log</h4>
+            <div class="log-scroll" id="log-scroll"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── TOAST ── -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
