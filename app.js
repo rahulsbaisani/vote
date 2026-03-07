@@ -292,42 +292,69 @@ document.getElementById("btn-next").addEventListener("click",()=>{
 // ─────────────────────────────────────────────
 async function loadFaceModels() {
   if(faceModelsLoaded) return true;
-  try {
-    const MODEL_URL="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights";
-    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-    faceModelsLoaded=true;
-    return true;
-  } catch(e) {
-    console.error("Face model load failed",e);
-    return false;
+  // Try 3 CDN sources — whichever loads first wins
+  const URLS=[
+    "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights",
+    "https://unpkg.com/face-api.js@0.22.2/weights",
+    "https://cdn.statically.io/npm/face-api.js@0.22.2/weights"
+  ];
+  for(const url of URLS){
+    try {
+      setFaceStatus("searching","Loading AI model…");
+      await faceapi.nets.tinyFaceDetector.loadFromUri(url);
+      faceModelsLoaded=true;
+      return true;
+    } catch(e){ console.warn("CDN failed:",url); }
   }
+  return false;
 }
+
+// If AI models fail entirely, fall back to simple photo-only mode
+let fallbackPhotoMode=false;
 
 async function startCamera() {
   setFaceStatus("searching","Initialising camera…");
   const btn=document.getElementById("btn-capture");
   if(btn) btn.disabled=true;
+  const hint=document.getElementById("face-hint");
 
   try {
-    faceStream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:"user"},audio:false});
+    // Use simpler constraints for mobile compatibility
+    faceStream=await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:"user", width:{ideal:640}, height:{ideal:480} },
+      audio:false
+    });
     const video=document.getElementById("face-video");
     video.srcObject=faceStream;
     await video.play();
 
     setFaceStatus("searching","Loading face detection AI…");
     const loaded=await loadFaceModels();
+
     if(!loaded){
-      setFaceStatus("error","Face AI failed to load. Please refresh.");
+      // Fallback: skip AI detection, just capture photo
+      fallbackPhotoMode=true;
+      faceDetected=true;
+      if(btn) btn.disabled=false;
+      setFaceStatus("found","Camera ready. Press Capture to take your photo.");
+      if(hint) hint.textContent="Face AI unavailable on this device — photo-only mode active.";
+      showToast("Photo mode active — AI unavailable.","info");
       return;
     }
+
+    fallbackPhotoMode=false;
     setFaceStatus("searching","Scanning for your face…");
     startFaceLoop();
   } catch(e) {
-    if(e.name==="NotAllowedError"){
-      setFaceStatus("error","Camera access denied. Please allow camera.");
+    if(e.name==="NotAllowedError"||e.name==="PermissionDeniedError"){
+      setFaceStatus("error","Camera access denied. Please allow camera in browser settings.");
       showToast("Camera permission denied.","error");
+    } else if(e.name==="NotFoundError"){
+      setFaceStatus("error","No camera found on this device.");
+      showToast("No camera detected.","error");
     } else {
-      setFaceStatus("error","Camera error: "+e.message);
+      setFaceStatus("error","Camera error. Try refreshing the page.");
+      console.error(e);
     }
   }
 }
