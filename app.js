@@ -27,6 +27,7 @@ const DEFAULT_CANDIDATES = {
 
 let db, settingsRef, candidatesRef, votersRef;
 let barChart=null, pieChart=null;
+let voterSearchQuery='';
 
 const totalVotes  = () => Object.values(STATE.candidates).reduce((a,b)=>a+b,0);
 const getInitials = n  => n.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
@@ -85,7 +86,7 @@ function attachListeners(){
   votersRef.onSnapshot(snap=>{
     STATE.voters={}; STATE.voterNames=new Set();
     snap.forEach(doc=>{ const d=doc.data(); STATE.voters[d.vid]={name:d.name,age:d.age,gender:d.gender,candidate:d.candidate}; STATE.voterNames.add(d.name.toLowerCase()); });
-    if(STATE.adminLoggedIn) renderAdminStats();
+    if(STATE.adminLoggedIn){ renderAdminStats(); renderVoterTable(); }
   });
   settingsRef.onSnapshot(doc=>{
     if(doc.exists){ const d=doc.data(); if(typeof d.votingOpen==="boolean") STATE.votingOpen=d.votingOpen; updateVotingToggle(); }
@@ -265,7 +266,7 @@ document.getElementById("btn-logout").addEventListener("click",()=>{
 // ADMIN DASHBOARD
 function renderAdminDashboard(){
   renderAdminStats(); renderAdminResultsTable(); renderCandidateManageList();
-  renderLogViewer(); updateVotingToggle(); renderCandidatesGrid(); renderCharts();
+  renderLogViewer(); updateVotingToggle(); renderCandidatesGrid(); renderCharts(); renderVoterTable();
 }
 
 function renderAdminStats(){
@@ -423,6 +424,147 @@ document.getElementById("btn-export").addEventListener("click",async()=>{
   URL.revokeObjectURL(url);
   await fbWriteLog("Admin exported results report");
   showToast("Report downloaded.","success");
+});
+
+
+// ─────────────────────────────────────────────
+//  VOTER TABLE
+// ─────────────────────────────────────────────
+function renderVoterTable(){
+  const tbody=document.getElementById("voters-tbody");
+  const badge=document.getElementById("voter-count-badge");
+  if(!tbody) return;
+
+  const all=Object.entries(STATE.voters); // [[vid, {name,age,gender,candidate}]]
+  const q=voterSearchQuery.toLowerCase().trim();
+  const filtered=q ? all.filter(([vid,v])=>
+    v.name.toLowerCase().includes(q) || vid.toLowerCase().includes(q) ||
+    (v.candidate||"").toLowerCase().includes(q)
+  ) : all;
+
+  if(badge) badge.textContent=`${filtered.length} / ${all.length} voter${all.length!==1?"s":""}`;
+
+  if(!filtered.length){
+    tbody.innerHTML=`<tr class="no-rows"><td colspan="7">${q?"No voters match your search.":"No votes have been cast yet."}</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML=filtered.map(([vid,v],i)=>`
+    <tr>
+      <td class="td-num">${i+1}</td>
+      <td class="td-id">${vid}</td>
+      <td class="td-name">${v.name}</td>
+      <td>${v.age}</td>
+      <td>${v.gender}</td>
+      <td><span class="td-vote">${v.candidate||"—"}</span></td>
+      <td>
+        <button class="tbl-btn edit" data-vid="${vid}">✏ Edit</button>
+        <button class="tbl-btn del"  data-vid="${vid}">✕ Delete</button>
+      </td>
+    </tr>
+  `).join("");
+
+  // Edit buttons
+  tbody.querySelectorAll(".tbl-btn.edit").forEach(btn=>{
+    btn.addEventListener("click",()=> openEditModal(btn.dataset.vid));
+  });
+  // Delete buttons
+  tbody.querySelectorAll(".tbl-btn.del").forEach(btn=>{
+    btn.addEventListener("click",()=> deleteVoter(btn.dataset.vid));
+  });
+}
+
+// Search
+document.getElementById("voter-search").addEventListener("input",e=>{
+  voterSearchQuery=e.target.value;
+  renderVoterTable();
+});
+
+// Delete voter
+async function deleteVoter(vid){
+  const v=STATE.voters[vid]; if(!v) return;
+  if(!confirm(`Delete voter "${v.name}" (ID: ${vid})? Their vote will also be removed.`)) return;
+  try{
+    // Decrement candidate vote count
+    const cand=v.candidate;
+    if(cand && STATE.candidates.hasOwnProperty(cand)){
+      const newVotes=Math.max(0,(STATE.candidates[cand]||1)-1);
+      await fbSaveCandidate(cand,newVotes);
+    }
+    await votersRef.doc(vid).delete();
+    await fbWriteLog(`Admin deleted voter: ${v.name} (ID:${vid})`);
+    showToast(`Voter "${v.name}" deleted.`,"info");
+  }catch(e){ showToast("Delete failed: "+e.message,"error"); console.error(e); }
+}
+
+// ─────────────────────────────────────────────
+//  EDIT MODAL
+// ─────────────────────────────────────────────
+function openEditModal(vid){
+  const v=STATE.voters[vid]; if(!v) return;
+
+  document.getElementById("edit-vid").value         = vid;
+  document.getElementById("edit-vid-display").value = vid;
+  document.getElementById("edit-name").value        = v.name;
+  document.getElementById("edit-age").value         = v.age;
+  document.getElementById("edit-gender").value      = v.gender;
+
+  // Populate candidate dropdown
+  const sel=document.getElementById("edit-candidate");
+  sel.innerHTML=Object.keys(STATE.candidates).map(c=>
+    `<option value="${c}" ${c===v.candidate?"selected":""}>${c}</option>`
+  ).join("");
+
+  document.getElementById("voter-modal").classList.add("open");
+}
+
+function closeModal(){
+  document.getElementById("voter-modal").classList.remove("open");
+}
+
+document.getElementById("modal-close").addEventListener("click",closeModal);
+document.getElementById("modal-cancel").addEventListener("click",closeModal);
+document.getElementById("voter-modal").addEventListener("click",e=>{
+  if(e.target===document.getElementById("voter-modal")) closeModal();
+});
+
+document.getElementById("modal-save").addEventListener("click",async()=>{
+  const vid      = document.getElementById("edit-vid").value;
+  const name     = document.getElementById("edit-name").value.trim();
+  const age      = parseInt(document.getElementById("edit-age").value);
+  const gender   = document.getElementById("edit-gender").value;
+  const newCand  = document.getElementById("edit-candidate").value;
+  const oldVoter = STATE.voters[vid];
+
+  if(!name)        { showToast("Name cannot be empty.","error"); return; }
+  if(!age||age<18) { showToast("Age must be 18 or older.","error"); return; }
+
+  const btn=document.getElementById("modal-save");
+  btn.disabled=true; btn.textContent="SAVING…";
+
+  try{
+    const oldCand=oldVoter?.candidate;
+
+    // If candidate changed — adjust vote counts
+    if(oldCand && newCand && oldCand!==newCand){
+      const oldVotes=Math.max(0,(STATE.candidates[oldCand]||1)-1);
+      const newVotes=(STATE.candidates[newCand]||0)+1;
+      await Promise.all([
+        fbSaveCandidate(oldCand,oldVotes),
+        fbSaveCandidate(newCand,newVotes)
+      ]);
+    }
+
+    // Update voter record
+    await votersRef.doc(vid).update({name,age,gender,candidate:newCand});
+    await fbWriteLog(`Admin edited voter: ${oldVoter?.name} → ${name} (ID:${vid})`);
+    closeModal();
+    showToast("Voter updated successfully.","success");
+  }catch(e){
+    showToast("Save failed: "+e.message,"error"); console.error(e);
+    btn.disabled=false; btn.textContent="SAVE CHANGES";
+  }
+  btn.disabled=false; btn.textContent="SAVE CHANGES";
 });
 
 // INIT
